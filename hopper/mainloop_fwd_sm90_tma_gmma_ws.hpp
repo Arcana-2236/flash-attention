@@ -913,6 +913,34 @@ struct CollectiveMainloopFwdSm90 {
             n_block_prev = n_block;
             if constexpr (Transpose_V) { copy_Vt_to_V(smem_pipe_write_v); }
         }
+        int const global_len = params.global_lens != nullptr ? params.global_lens[bidb] : 0;
+        if (global_len > 0) {
+            int const n_block_global = cute::ceil_div(global_len, get<1>(TileShape_MNK{})); // kBlockN
+            int const n_block_first_end = std::min(n_block_global, n_block_min) - 1;
+            #pragma unroll (!Transpose_V && Use_TMA_KV ? 2 : 1)
+            for (n_block = n_block_first_end; n_block >= 0; --n_block) {
+                PipelineState smem_pipe_write_v = smem_pipe_write; // copy the state, write_v is always 1 step behind
+                ++smem_pipe_write;
+                if (should_load_KV) {
+                    if constexpr (PagedKVNonTMA) {
+                        paged_kv_manager.template load_page_table<false /*Seqlenk_mask*/>(n_block);
+                    } else {
+                        paged_kv_manager.load_page_table_TMA(n_block);
+                    }
+                    if constexpr (Transpose_V) { load_V(n_block, smem_pipe_write, cute::false_type{} /*Seqlenk_mask*/); }
+                    load_K(n_block, smem_pipe_write, cute::false_type{} /*Seqlenk_mask*/);
+                    if constexpr (!Transpose_V) {
+                        if constexpr (IntraWGOverlap) {
+                            load_V(n_block_prev, smem_pipe_write_v, cute::true_type{} /*Seqlenk_mask*/);
+                        } else {
+                            load_V(n_block, smem_pipe_write, cute::false_type{} /*Seqlenk_mask*/);
+                        }
+                    }
+                }
+                n_block_prev = n_block;
+                if constexpr (Transpose_V) { copy_Vt_to_V(smem_pipe_write_v); }
+            }
+        }
         scheduler_prefetch();
         if constexpr (!Transpose_V && IntraWGOverlap) {
             if (should_load_KV) { load_V(n_block_prev, smem_pipe_write, cute::true_type{} /*Seqlenk_mask*/); }
@@ -1304,6 +1332,14 @@ struct CollectiveMainloopFwdSm90 {
                 #pragma unroll 1
                 for (; n_block >= n_block_min; --n_block) {
                     fwd_step(n_block, local_mask_fn, cute::bool_constant<Is_local>{} /*check_inf*/);
+                }
+                if (global_len > 0) {
+                    int const n_block_global = cute::ceil_div(global_len, kBlockN);
+                    int const n_block_first_end = std::min(n_block_global, n_block_min) - 1;
+                    #pragma unroll 1
+                    for (n_block = n_block_first_end; n_block >= 0; --n_block) {
+                        fwd_step(n_block, local_mask_fn, cute::bool_constant<Is_local>{} /*check_inf*/);
+                    }
                 }
             }
             // Tell producers that smem_q is ready

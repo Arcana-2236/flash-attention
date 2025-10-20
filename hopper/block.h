@@ -20,16 +20,18 @@ struct BlockMN {
         int seqlen_k = seqlen_info.seqlen_k;
         int const seqlen_q = seqlen_info.seqlen_q;
         int n_offset = 0;
+        int n_block_min = 0;
 
         // If local, calculate n_offset and update seqlen_k
         if constexpr (Is_local) {
             int m_idx_min = m_block * kBlockM;
             if (PackGQA) { m_idx_min = qhead_per_khead_divmod.divide(m_idx_min); }
             // unlike previously, we don't divide by kBlockN because we want offset for seqlen_k
-            // n_offset = std::max(int(0), m_idx_min + seqlen_k - seqlen_q - window_size_left);
+            n_offset = std::max(int(0), m_idx_min + seqlen_k - seqlen_q - window_size_left);
             // Subtract n_offset from seqlen_k for subsequent calculations such as n_block_max
             // This is the actual seqlen_k processed for this m_block
-            seqlen_k -= n_offset;
+            // seqlen_k -= n_offset;
+            n_block_min = std::max(int(0), cute::ceil_div(n_offset, kBlockN) - 1);
         }
 
         int n_block_max = cute::ceil_div(seqlen_k, kBlockN);
@@ -41,8 +43,9 @@ struct BlockMN {
             n_block_max = std::min(n_block_max,
                                    cute::ceil_div(m_idx_max + seqlen_k - seqlen_q + window_size_right, kBlockN));
         }
-        // Now, only adjust n_block_min if split
-        int n_block_min = 0;
+        
+        // only adjust n_block_min if split
+        // int n_block_min = 0;
         
         // if (threadIdx.x == 128) { printf("Inside, bid.x = %d, bid.y = %d, bid.z = %d, split_idx = %d, n_block_min: %d, n_block_max: %d\n", blockIdx.x, blockIdx.y, blockIdx.z, split_idx, n_block_min, n_block_max); }
         if constexpr (Split) {
