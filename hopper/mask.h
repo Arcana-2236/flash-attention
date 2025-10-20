@@ -153,10 +153,20 @@ struct Mask {
                         // row limit to be kBlockM.
                         int const row_limit_top = col0 >= seqlenk_col_limit ? kBlockM : col0 - causal_row_offset - window_size_right;
                         int const row_limit_bot = col0 < col_limit_sink ? kBlockM : col0 - causal_row_offset + window_size_left;
+                        // --- Global prefix detection (trimmed coords) ---
+                        // col_limit_sink aligns col0 to global K origin; this is equivalent to (global_j < global_len).
+                        bool in_prefix = (col0 < (global_len + col_limit_sink));
                         #pragma unroll
                         for (int m = 0; m < size<0>(tSrS_rowcol); ++m) {
                             int const row_idx = int(get<Row>(t0ScS_rowcol(m, _0{})));
-                            if (row_idx < row_limit_top || row_idx > row_limit_bot) { tSrS_rowcol(m, n) = -INFINITY; }
+                            // Keep causal/right as-is:
+                            bool right_viol = (row_idx < row_limit_top);
+                            // Disable the LEFT-window violation if this column is in the prefix:
+                            bool left_viol  = (!in_prefix) && (row_idx > row_limit_bot);
+                            if (right_viol || left_viol) {
+                                tSrS_rowcol(m, n) = -INFINITY;
+                            }
+                            // if (row_idx < row_limit_top || row_idx > row_limit_bot) { tSrS_rowcol(m, n) = -INFINITY; }
                         }
                     }
                 }
