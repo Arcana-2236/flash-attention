@@ -27,11 +27,11 @@ struct BlockMN {
             int m_idx_min = m_block * kBlockM;
             if (PackGQA) { m_idx_min = qhead_per_khead_divmod.divide(m_idx_min); }
             // unlike previously, we don't divide by kBlockN because we want offset for seqlen_k
-            n_offset = std::max(int(0), m_idx_min + seqlen_k - seqlen_q - window_size_left);
+            // n_offset = std::max(int(0), m_idx_min + seqlen_k - seqlen_q - window_size_left);
             // Subtract n_offset from seqlen_k for subsequent calculations such as n_block_max
             // This is the actual seqlen_k processed for this m_block
-            // seqlen_k -= n_offset;
-            n_block_min = std::max(int(0), cute::ceil_div(n_offset, kBlockN) - 1);
+            seqlen_k -= n_offset;
+            n_block_min = std::max(int(0), cute::ceil_div(std::max(int(0), m_idx_min + seqlen_k - seqlen_q - window_size_left), kBlockN) - 1);
         }
 
         int n_block_max = cute::ceil_div(seqlen_k, kBlockN);
