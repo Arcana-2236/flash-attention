@@ -85,6 +85,7 @@ void set_params_fprop(Flash_fwd_params &params,
                       void *cu_seqlens_k_d,
                       void *seqused_q,
                       void *seqused_k,
+                      void *global_lens,
                       void *softmax_lse_d,
                       float p_dropout,
                       float softmax_scale,
@@ -128,6 +129,7 @@ void set_params_fprop(Flash_fwd_params &params,
     params.cu_seqlens_k = static_cast<int *>(cu_seqlens_k_d);
     params.seqused_q = static_cast<int *>(seqused_q);
     params.seqused_k = static_cast<int *>(seqused_k);
+    params.global_lens = static_cast<int *>(global_lens);
 
     // Softmax sum
     params.softmax_lse_ptr = softmax_lse_d;
@@ -223,6 +225,7 @@ void set_params_dgrad(Flash_bwd_params &params,
                      cu_seqlens_k_d,
                      seqused_q,
                      seqused_k,
+                     /*global_lens=*/nullptr,
                      softmax_lse_d,
                      p_dropout,
                      softmax_scale,
@@ -707,7 +710,8 @@ mha_fwd(at::Tensor &q,   // (b, s_q, h, d) or (total_q, h, d) if there is cu_seq
         int num_splits,
         std::optional<bool> pack_gqa_,
         int const sm_margin,
-        std::optional<const at::Tensor> &s_aux_ // (h)
+        std::optional<const at::Tensor> &s_aux_, // (h)
+        std::optional<const at::Tensor> &global_lens_ // (b)
         ) {
 
     auto dprops = at::cuda::getCurrentDeviceProperties();
@@ -846,6 +850,13 @@ mha_fwd(at::Tensor &q,   // (b, s_q, h, d) or (total_q, h, d) if there is cu_seq
         CHECK_SHAPE(seqused_k, batch_size);
     }
 
+    if (global_lens_.has_value()) {
+        auto global_lens = global_lens_.value();
+        TORCH_CHECK(global_lens.dtype() == torch::kInt32, "global_lens must have dtype int32");
+        CHECK_DEVICE(global_lens); CHECK_CONTIGUOUS(global_lens);
+        CHECK_SHAPE(global_lens, batch_size);
+    }
+
     if (leftpad_k_.has_value()) {
         auto leftpad_k = leftpad_k_.value();
         TORCH_CHECK(leftpad_k.dtype() == torch::kInt32, "leftpad_k must have dtype int32");
@@ -911,6 +922,7 @@ mha_fwd(at::Tensor &q,   // (b, s_q, h, d) or (total_q, h, d) if there is cu_seq
                      !is_varlen_k ? nullptr : cu_seqlens_k.data_ptr(),
                      seqused_q_.has_value() ? seqused_q_.value().data_ptr() : nullptr,
                      seqused_k_.has_value() ? seqused_k_.value().data_ptr() : nullptr,
+                     global_lens_.has_value() ? global_lens_.value().data_ptr() : nullptr,
                      softmax_lse.data_ptr(),
                      /*p_dropout=*/0.f,
                      softmax_scale,

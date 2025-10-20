@@ -214,6 +214,7 @@ struct CollectiveMainloopFwdSm80 {
         int const* const seqused_k = nullptr;
         int const* const leftpad_k = nullptr;
         int const* const seqlens_rotary = nullptr;
+        int const* const global_lens = nullptr;
         ElementSAux const* const ptr_S_aux = nullptr;
     };
 
@@ -260,6 +261,7 @@ struct CollectiveMainloopFwdSm80 {
         int const* const seqused_k = nullptr;
         int const* const leftpad_k = nullptr;
         int const* const seqlens_rotary = nullptr;
+        int const* const global_lens = nullptr;
         ElementSAux const* const ptr_S_aux = nullptr;
     };
 
@@ -301,6 +303,7 @@ struct CollectiveMainloopFwdSm80 {
                 args.kv_batch_idx,
                 args.cu_seqlens_q, args.cu_seqlens_k, args.cu_seqlens_k_new,
                 args.seqused_q, args.seqused_k, args.leftpad_k, args.seqlens_rotary,
+                args.global_lens,
                 args.ptr_S_aux};
     }
 

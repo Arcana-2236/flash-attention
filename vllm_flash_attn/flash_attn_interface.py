@@ -146,6 +146,7 @@ def flash_attn_varlen_func(
     # Version selector
     fa_version: int = DEFAULT_FA_VERSION,
     s_aux=None,
+    global_lens=None,
 ):
     """dropout_p should be set to 0.0 during evaluation
     Supports multi-query and grouped-query attention (MQA/GQA) by passing in K, V with fewer heads
@@ -193,6 +194,7 @@ def flash_attn_varlen_func(
         return_attn_probs: bool. Whether to return the attention probabilities. This option is for
            testing only. The returned probabilities are not guaranteed to be correct
            (they might not have the right scaling).
+        global_lens: (batch_size,), dtype torch.int32. The lengths of the global tokens for each sequence in sliding window.
     Return:
         out: (total, nheads, headdim).
         softmax_lse [optional, if return_softmax_lse=True]: (nheads, total_q_seqlen). The
@@ -279,7 +281,8 @@ def flash_attn_varlen_func(
             num_splits,
             None,             # pack_gqa
             0,                # sm_margin
-            s_aux             # s_aux
+            s_aux,            # s_aux
+            global_lens       # global_lens
         )
     else:
         raise ValueError(f"Unsupported FA version: {fa_version}")

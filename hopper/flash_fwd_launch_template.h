@@ -129,6 +129,7 @@ void run_flash_fwd(Flash_fwd_params &params, cudaStream_t stream) {
         params.cu_seqlens_q, params.cu_seqlens_k, params.cu_seqlens_knew,
         params.seqused_q, params.seqused_k,
         params.leftpad_k, params.seqlens_rotary,
+        params.global_lens,
         static_cast<ElementS const*>(params.s_aux_ptr)
     };
     typename CollectiveEpilogue::Arguments epilogue_args {

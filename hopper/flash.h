@@ -80,6 +80,8 @@ struct Flash_fwd_params : public Qkv_params {
     // If provided, the actual length of each q/k sequence.
     int *__restrict__ seqused_q;
     int *__restrict__ seqused_k;
+    // If provided, the number of global prompt tokens per sequence (length b)
+    int *__restrict__ global_lens;
 
     // The stride between rows of Oaccum.
     index_t oaccum_split_stride;

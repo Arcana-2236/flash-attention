@@ -411,6 +411,7 @@ struct CollectiveMainloopFwdSm90 {
         int const* const seqused_k = nullptr;
         int const* const leftpad_k = nullptr;
         int const* const seqlens_rotary = nullptr;
+        int const* const global_lens = nullptr;
         ElementSAux const* const ptr_S_aux = nullptr;
     };
 
@@ -468,6 +469,7 @@ struct CollectiveMainloopFwdSm90 {
         int const* const seqused_k = nullptr;
         int const* const leftpad_k = nullptr;
         int const* const seqlens_rotary = nullptr;
+        int const* const global_lens = nullptr;
         ElementSAux const* const ptr_S_aux = nullptr;
     };
 
@@ -584,6 +586,7 @@ struct CollectiveMainloopFwdSm90 {
                 args.kv_batch_idx,
                 args.cu_seqlens_q, args.cu_seqlens_k, args.cu_seqlens_k_new,
                 args.seqused_q, args.seqused_k, args.leftpad_k, args.seqlens_rotary,
+                args.global_lens,
                 args.ptr_S_aux};
     }
 
@@ -1088,12 +1091,13 @@ struct CollectiveMainloopFwdSm90 {
         // Compute actual seqlen_k for this mma worktile
         int const seqlen_k = seqlen_info.seqlen_k - n_offset;
         int n_block = n_block_max - 1;
-
+        
+        int const global_len = params.global_lens != nullptr ? params.global_lens[bidb] : 0;
         // NOTE: sink_token_length is dead code
         // But we subtract n_offset for consistency in mask calculations
         flash::Mask<kBlockM, kBlockN, PackGQA, TiledMmaQK> mask(
             thread_idx, seqlen_q, seqlen_k, params.window_size_left, params.window_size_right, 0 - n_offset /*sink_token_length*/,
-            params.qhead_per_khead_divmod
+            params.qhead_per_khead_divmod, global_len
         );
 
         float softcap_val = params.softcap_val;

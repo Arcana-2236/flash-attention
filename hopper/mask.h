@@ -23,11 +23,12 @@ struct Mask {
     int const seqlen_q, seqlen_k;
     int const window_size_left, window_size_right, sink_token_length;
     cutlass::FastDivmod const qhead_per_khead_divmod;
+    int const global_len;
 
     CUTLASS_DEVICE
     Mask(const int thread_idx, const int seqlen_q, const int seqlen_k,
          const int window_size_left, const int window_size_right, const int sink_token_length,
-         cutlass::FastDivmod const &qhead_per_khead_divmod)
+         cutlass::FastDivmod const &qhead_per_khead_divmod, const int global_len = 0)
         : thread_idx(thread_idx)
         , seqlen_q(seqlen_q)
         , seqlen_k(seqlen_k)
@@ -35,6 +36,7 @@ struct Mask {
         , window_size_right(window_size_right)
         , sink_token_length(sink_token_length)
         , qhead_per_khead_divmod(qhead_per_khead_divmod)
+        , global_len(global_len)
     {
     };
 
@@ -113,7 +115,17 @@ struct Mask {
                         #pragma unroll
                         for (int n = 0; n < size<1>(tSrS_rowcol); ++n) {
                             int const col_idx = int(get<Col>(t0ScS_rowcol(m, n)));
-                            if (col_idx >= col_limit_right || (col_idx < col_limit_left && col_idx >= col_limit_sink)) { tSrS_rowcol(m, n) = -INFINITY; }
+                            // In Local_mask branch, modify the masking condition:
+                            bool in_prefix = (col_idx < (global_len + col_limit_sink));
+                            bool right_viol = (col_idx >= col_limit_right);  // causal/right window (unchanged)
+                            bool left_viol = (!in_prefix) &&                 // DON'T left-mask prefix
+                                            (col_idx < col_limit_left) &&
+                                            (col_idx >= col_limit_sink);
+
+                            if (right_viol || left_viol) {
+                                tSrS_rowcol(m, n) = -INFINITY;
+                            }
+                            // if (col_idx >= col_limit_right || (col_idx < col_limit_left && col_idx >= col_limit_sink)) { tSrS_rowcol(m, n) = -INFINITY; }
                         }
                     }
                 }
