@@ -914,7 +914,8 @@ struct CollectiveMainloopFwdSm90 {
             if constexpr (Transpose_V) { copy_Vt_to_V(smem_pipe_write_v); }
         }
         int const global_len = params.global_lens != nullptr ? params.global_lens[bidb] : 0;
-        if (global_len > 0) {
+        // Only process global tokens for the first split
+        if (global_len > 0 && (!Split || (split_idx & 0x0000FFFF) == 0)) {
             int const n_block_global = cute::ceil_div(global_len, get<1>(TileShape_MNK{})); // kBlockN
             int const n_block_first_end = std::min(n_block_global, n_block_min) - 1;
             #pragma unroll (!Transpose_V && Use_TMA_KV ? 2 : 1)
@@ -1333,7 +1334,7 @@ struct CollectiveMainloopFwdSm90 {
                 for (; n_block >= n_block_min; --n_block) {
                     fwd_step(n_block, local_mask_fn, cute::bool_constant<Is_local>{} /*check_inf*/);
                 }
-                if (global_len > 0) {
+                if (global_len > 0 && (!Split || (split_idx & 0x0000FFFF) == 0)) {
                     int const n_block_global = cute::ceil_div(global_len, kBlockN);
                     int const n_block_first_end = std::min(n_block_global, n_block_min) - 1;
                     #pragma unroll 1
