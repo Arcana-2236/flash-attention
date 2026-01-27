@@ -2,7 +2,7 @@
 
 ## FA kernel modification
 1. Intra-tile level masking: Logical mask for GSW, but still have redundant computation --> 20% slow down
-2. Inter-tile level skipping: Actual skip for GSW, faster, but currently still has some problem in mathmetic part --> ~4.4% slow down
+2. Inter-tile level skipping: Actual skip for GSW, faster --> ~4.4% slow down
 
 
 ## Run and modify the code
